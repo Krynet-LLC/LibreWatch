@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8">
 <title>Krynet, LLC | Watch Together</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 body { background:#121212; color:#eee; font-family: Arial, sans-serif; padding: 1rem; }
 #resultsContainer { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap: 1rem; margin-top: 1rem; }
@@ -15,41 +15,30 @@ input, button { font-size: 1rem; padding: .5rem 1rem; border-radius: 9999px; bor
 input { width: 60%; background:#222; color:#eee; }
 button { background:#bb86fc; color:#121212; font-weight:bold; cursor:pointer; }
 #playerContainer { margin-top: 1rem; position:relative; }
-iframe { width:100%; height:360px; border:none; border-radius:12px; }
+#html5Player { width:100%; height:360px; border-radius:12px; background:#000; }
 </style>
 </head>
 <body>
 
-<input type="text" id="searchInput" placeholder="Search YouTube..." />
+<input type="text" id="searchInput" placeholder="Search YouTube...">
 <button id="searchButton">Search</button>
 
-<div id="playerContainer"></div>
+<div id="playerContainer">
+  <video id="html5Player" controls autoplay></video>
+</div>
 <div id="resultsContainer"></div>
 
 <script type="module">
 import { config } from './config.js';
 
-let playerIframe;
-let currentSegments = [];
-let checkInterval;
+const searchInput = document.getElementById('searchInput');
+const searchButton = document.getElementById('searchButton');
+const resultsContainer = document.getElementById('resultsContainer');
+const playerContainer = document.getElementById('playerContainer');
+const html5Player = document.getElementById('html5Player');
 
-// -------------------- PLAYER --------------------
-function createYouTubePlayer(containerId, videoId, options={}) {
-  const container = document.getElementById(containerId);
-  container.innerHTML = '';
-
-  playerIframe = document.createElement('iframe');
-  playerIframe.src = `${config.videoAPI}watch?v=${videoId}${options.autoplay ? '&autoplay=1' : ''}`;
-  playerIframe.allow = 'autoplay; fullscreen';
-  playerIframe.width = options.width || '100%';
-  playerIframe.height = options.height || 360;
-  container.appendChild(playerIframe);
-
-  // Reset SponsorBlock tracking
-  currentSegments = [];
-  if (checkInterval) clearInterval(checkInterval);
-  checkInterval = setInterval(autoSkipSegments, 500); // placeholder
-}
+let sponsorSegments = [];
+let skipInterval;
 
 // -------------------- SPONSORBLOCK --------------------
 async function fetchSponsorSegments(videoId) {
@@ -57,33 +46,49 @@ async function fetchSponsorSegments(videoId) {
     const res = await fetch(`${config.sponsorBlock}/api/skipSegments?videoID=${videoId}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const segments = await res.json();
-    currentSegments = segments.sort((a,b)=>a.segment[0]-b.segment[0]);
+    sponsorSegments = segments.sort((a,b)=>a.segment[0]-b.segment[0]);
   } catch (err) {
     console.warn('SponsorBlock fetch failed:', err);
-    currentSegments = [];
+    sponsorSegments = [];
   }
 }
 
-// Placeholder auto-skip function
-function autoSkipSegments() {
-  // Currently does nothing for iframe embeds.
-  // Use HTML5 player to read currentTime and jump segments.
+// -------------------- AUTO-SKIP --------------------
+function startAutoSkip() {
+  if (skipInterval) clearInterval(skipInterval);
+  skipInterval = setInterval(() => {
+    if (!html5Player || !sponsorSegments.length) return;
+    const t = html5Player.currentTime;
+    for (let seg of sponsorSegments) {
+      const [start, end] = seg.segment;
+      if (t >= start && t < end) {
+        html5Player.currentTime = end + 0.01;
+        break;
+      }
+    }
+  }, 200); // check 5x/sec
+}
+
+// -------------------- VIDEO PLAYER --------------------
+async function playVideo(video) {
+  const vid = video.id;
+  await fetchSponsorSegments(vid);
+  html5Player.src = `${config.videoAPI}watch?v=${vid}`; // Piped iframe stream fallback
+  html5Player.play();
+  startAutoSkip();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // -------------------- SEARCH --------------------
-const searchInput = document.getElementById('searchInput');
-const searchButton = document.getElementById('searchButton');
-const resultsContainer = document.getElementById('resultsContainer');
-const playerContainer = document.getElementById('playerContainer');
-
 async function searchVideos(query) {
   try {
-    const res = await fetch(`${config.videoAPI}api/v1/search?q=${encodeURIComponent(query)}&type=videos`);
+    const res = await fetch(`${config.pipedAPI}search?q=${encodeURIComponent(query)}&type=videos`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     return data.items || data || [];
   } catch (err) {
     console.error('Search failed:', err);
+    resultsContainer.innerHTML = `<p>Error fetching videos: ${err.message}</p>`;
     return [];
   }
 }
@@ -102,18 +107,8 @@ function renderResults(videos) {
 
     const div = document.createElement('div');
     div.className = 'video';
-    div.innerHTML = `
-      <img src="${thumb}" alt="${title}" />
-      <div class="info"><h3>${title}</h3></div>
-    `;
-
-    div.onclick = async () => {
-      playerContainer.innerHTML = '';
-      createYouTubePlayer('playerContainer', vid, { autoplay: true, width: '100%', height: 360 });
-      await fetchSponsorSegments(vid);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
-
+    div.innerHTML = `<img src="${thumb}" alt="${title}"><div class="info"><h3>${title}</h3></div>`;
+    div.onclick = () => playVideo(video);
     resultsContainer.appendChild(div);
   });
 }
@@ -121,7 +116,6 @@ function renderResults(videos) {
 searchButton.onclick = async () => {
   const q = searchInput.value.trim();
   if (!q) return;
-  playerContainer.innerHTML = '';
   resultsContainer.innerHTML = '<p>Loading…</p>';
   const videos = await searchVideos(q);
   renderResults(videos);
