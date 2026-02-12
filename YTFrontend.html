@@ -34,11 +34,11 @@ import { config } from './config.js';
 const searchInput = document.getElementById('searchInput');
 const searchButton = document.getElementById('searchButton');
 const resultsContainer = document.getElementById('resultsContainer');
-const playerContainer = document.getElementById('playerContainer');
 const html5Player = document.getElementById('html5Player');
 
 let sponsorSegments = [];
 let skipInterval;
+let syncSocket;
 
 // -------------------- SPONSORBLOCK --------------------
 async function fetchSponsorSegments(videoId) {
@@ -66,23 +66,24 @@ function startAutoSkip() {
         break;
       }
     }
-  }, 200); // check 5x/sec
+  }, 200);
 }
 
 // -------------------- VIDEO PLAYER --------------------
 async function playVideo(video) {
   const vid = video.id;
   await fetchSponsorSegments(vid);
-  html5Player.src = `${config.videoAPI}watch?v=${vid}`; // Piped iframe stream fallback
+  html5Player.src = `${config.videoAPI}watch?v=${vid}`; // Piped iframe fallback
   html5Player.play();
   startAutoSkip();
+  syncSend({ type: 'play', videoId: vid, time: 0 });
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // -------------------- SEARCH --------------------
 async function searchVideos(query) {
   try {
-    const res = await fetch(`${config.pipedAPI}search?q=${encodeURIComponent(query)}&type=videos`);
+    const res = await fetch(`${config.pipedAPI}v1/search?q=${encodeURIComponent(query)}&type=videos`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     return data.items || data || [];
@@ -120,7 +121,30 @@ searchButton.onclick = async () => {
   const videos = await searchVideos(q);
   renderResults(videos);
 };
-</script>
 
+// -------------------- WATCH TOGETHER SYNC --------------------
+function initSync() {
+  syncSocket = new WebSocket('wss://your-sync-server.example/ws'); // replace with your server
+  syncSocket.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if (msg.type === 'play' && msg.videoId !== html5Player.dataset.videoId) {
+      html5Player.src = `${config.videoAPI}watch?v=${msg.videoId}`;
+      html5Player.currentTime = msg.time || 0;
+      html5Player.play();
+    } else if (msg.type === 'seek') {
+      html5Player.currentTime = msg.time;
+    }
+  };
+}
+
+function syncSend(data) {
+  if (syncSocket && syncSocket.readyState === WebSocket.OPEN) {
+    syncSocket.send(JSON.stringify(data));
+  }
+}
+
+// -------------------- INIT --------------------
+initSync();
+</script>
 </body>
 </html>
