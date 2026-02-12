@@ -7,61 +7,36 @@
 <style>
 body { background:#121212; color:#eee; font-family:Arial,sans-serif; padding:1rem; }
 #playerContainer { margin-top:1rem; position:relative; }
-iframe { width:100%; height:360px; border:none; border-radius:12px; }
+iframe { width:100%; height:480px; border:none; border-radius:12px; }
 input, button { font-size:1rem; padding:.5rem 1rem; border-radius:9999px; border:none; }
 input { width:50%; background:#222; color:#eee; margin-right:.5rem; }
 button { background:#bb86fc; color:#121212; font-weight:bold; cursor:pointer; }
-#resultsContainer { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap:1rem; margin-top:1rem; }
-.video { cursor:pointer; background:#222; border-radius:8px; overflow:hidden; transition:transform .2s; }
-.video:hover { transform:scale(1.02); }
-.video img { width:100%; display:block; }
-.info { padding:.5rem; }
 </style>
 </head>
 <body>
 
-<h2>Watch Together – Search YouTube</h2>
-<input type="text" id="searchInput" placeholder="Search videos..." />
-<button id="searchButton">Search</button>
+<h2>Watch Together – Paste YouTube/Piped URL</h2>
+<input type="text" id="videoInput" placeholder="Paste URL or video ID..." />
+<button id="playButton">Play</button>
 
 <div id="playerContainer"></div>
-<div id="resultsContainer"></div>
 
 <script type="module">
 import { config } from './config.js';
 
-const searchInput = document.getElementById('searchInput');
-const searchButton = document.getElementById('searchButton');
-const resultsContainer = document.getElementById('resultsContainer');
+const videoInput = document.getElementById('videoInput');
+const playButton = document.getElementById('playButton');
 const playerContainer = document.getElementById('playerContainer');
 
-let currentSegments = [];
-let segmentIndex = 0;
-let autoSkipInterval;
-
-// Extract video ID from URL or Piped/Invidious URL
+// Extract video ID from URL or accept raw ID
 function extractVideoID(input) {
     try {
         const url = new URL(input);
-        if(url.hostname.includes('youtube') || url.hostname.includes('invidious') || url.hostname.includes('piped')) {
-            return url.searchParams.get('v');
+        if(url.hostname.includes('youtube') || url.hostname.includes('piped') || url.hostname.includes('invidious')) {
+            return url.searchParams.get('v') || input;
         }
     } catch(e) {}
     return input.trim();
-}
-
-// Fetch SponsorBlock segments
-async function fetchSponsorSegments(videoId) {
-    try {
-        const res = await fetch(`${config.sponsorBlock}/api/skipSegments?videoID=${videoId}`);
-        if(!res.ok) throw new Error(`HTTP ${res.status}`);
-        const segments = await res.json();
-        currentSegments = segments.sort((a,b)=>a.segment[0]-b.segment[0]);
-        segmentIndex = 0;
-    } catch(err) {
-        console.warn('SponsorBlock fetch failed:', err);
-        currentSegments = [];
-    }
 }
 
 // Create iframe player
@@ -74,87 +49,43 @@ function createPlayer(videoId, startTime = 0) {
     iframe.loading = 'lazy';
     iframe.style.borderRadius = '12px';
     iframe.style.width = '100%';
-    iframe.style.height = '360px';
+    iframe.style.height = '480px';
     playerContainer.appendChild(iframe);
-
-    if(autoSkipInterval) clearInterval(autoSkipInterval);
-    autoSkipInterval = setInterval(() => {
-        try {
-            const player = iframe.contentWindow.document.querySelector('video');
-            if(!player || !currentSegments.length) return;
-            const time = player.currentTime;
-            const seg = currentSegments[segmentIndex];
-            if(seg && time >= seg.segment[0] && time < seg.segment[1]) {
-                player.currentTime = seg.segment[1];
-                segmentIndex++;
-            } else if(seg && time >= seg.segment[1]) {
-                segmentIndex++;
-            }
-        } catch(e) {}
-    }, 500);
-    return iframe;
 }
 
-// Search videos via Invidious API
-async function searchVideos(query) {
-    resultsContainer.innerHTML = '<p>Loading…</p>';
-    try {
-        const res = await fetch(`${config.API}search?q=${encodeURIComponent(query)}`);
-        if(!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        return data;
-    } catch(err) {
-        console.error('Search failed:', err);
-        resultsContainer.innerHTML = `<p>Error: ${err.message}</p>`;
-        return [];
-    }
+// Update URL hash for Watch Together
+function updateHash(videoId, time = 0) {
+    history.replaceState(null, '', `#${videoId}@${Math.floor(time)}`);
 }
 
-// Render search results
-function renderResults(videos) {
-    resultsContainer.innerHTML = '';
-    if(!videos.length) {
-        resultsContainer.innerHTML = '<p>No results found.</p>';
-        return;
-    }
-    videos.forEach(video => {
-        const vid = video.videoId;
-        const title = video.title;
-        const thumb = video.videoThumbnails?.[0]?.url || '';
-        const div = document.createElement('div');
-        div.className = 'video';
-        div.innerHTML = `
-            <img src="${thumb}" alt="${title}" />
-            <div class="info"><h3>${title}</h3></div>
-        `;
-        div.onclick = async () => {
-            createPlayer(vid);
-            await fetchSponsorSegments(vid);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        };
-        resultsContainer.appendChild(div);
-    });
-}
-
-// Search button
-searchButton.onclick = async () => {
-    const q = searchInput.value.trim();
-    if(!q) return;
-    const videos = await searchVideos(q);
-    renderResults(videos);
-};
-
-// Load from URL hash (Watch Together)
-function checkHashOnLoad() {
+// Load video from URL hash
+function loadFromHash() {
     const hash = location.hash.substring(1);
     if(!hash) return;
     const [vid, t] = hash.split('@');
     if(!vid) return;
-    createPlayer(vid, parseInt(t)||0);
-    fetchSponsorSegments(vid);
+    createPlayer(vid, parseInt(t) || 0);
 }
 
-checkHashOnLoad();
+playButton.onclick = () => {
+    const input = videoInput.value.trim();
+    if(!input) return alert('Paste a video URL or ID');
+    const vid = extractVideoID(input);
+    createPlayer(vid);
+    updateHash(vid, 0);
+};
+
+// Optional: periodically save timestamp (cannot read video time cross-origin)
+setInterval(() => {
+    const iframe = playerContainer.querySelector('iframe');
+    if(!iframe) return;
+    try {
+        const videoId = extractVideoID(iframe.src);
+        updateHash(videoId, 0);
+    } catch(e) {}
+}, 5000);
+
+loadFromHash();
 </script>
 </body>
 </html>
