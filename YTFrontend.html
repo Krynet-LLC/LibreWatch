@@ -2,12 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>BarneyTube – YouTube Search Frontend</title>
+  <title>Krynet, LLC | Watch Together</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body { background:#121212; color:#eee; font-family: Arial, sans-serif; padding: 1rem; }
     #resultsContainer { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap: 1rem; margin-top: 1rem; }
-    .video { cursor: pointer; background: #222; border-radius: 8px; overflow:hidden; }
+    .video { cursor: pointer; background: #222; border-radius: 8px; overflow:hidden; transition: transform 0.2s; }
+    .video:hover { transform: scale(1.02); }
     .video img { width: 100%; display: block; }
     .info { padding: 0.5rem; }
     input, button {  
@@ -18,92 +19,101 @@
     }
     input { width: 60%; background:#222; color:#eee; }
     button { background:#bb86fc; color:#121212; font-weight:bold; cursor:pointer; }
-    #playerContainer { margin-top: 1rem; }
+    #playerContainer { margin-top: 1rem; position:relative; }
     iframe { width:100%; height:360px; border:none; border-radius:12px; }
   </style>
 </head>
 <body>
+<input type="text" id="searchInput" placeholder="Search YouTube..." />
+<button id="searchButton">Search</button>
+<div id="playerContainer"></div>
+<div id="resultsContainer"></div>
+<script type="module">
+import { config } from './config.js';
+let playerIframe;
+let currentSegments = [];
+let segmentIndex = 0;
+let checkInterval;
+function createYouTubePlayer(containerId, videoId, options={}) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  playerIframe = document.createElement('iframe');
+  playerIframe.src = `${config.videoAPI}watch?v=${videoId}`;
+  playerIframe.allow = 'autoplay; fullscreen';
+  playerIframe.width = options.width || '100%';
+  playerIframe.height = options.height || 360;
+  container.appendChild(playerIframe);
+  // Reset SponsorBlock tracking
+  currentSegments = [];
+  segmentIndex = 0;
+  // Auto-skip loop every 500ms
+  if (checkInterval) clearInterval(checkInterval);
+  checkInterval = setInterval(autoSkipSegments, 500);
 
-  <input type="text" id="searchInput" placeholder="Search YouTube..." />
-  <button id="searchButton">Search</button>
-
-  <div id="playerContainer"></div>
-  <div id="resultsContainer"></div>
-
- <script type="module">
-  import { config } from './config.js';
-  import { createYouTubePlayer } from './Player/youtubePlayer.js';
-
-  const API_KEY = config.GOOGLE_API_KEY;
-  const searchInput = document.getElementById('searchInput');
-  const searchButton = document.getElementById('searchButton');
-  const resultsContainer = document.getElementById('resultsContainer');
-  const playerContainer = document.getElementById('playerContainer');
-
-  async function searchVideos(query) {
-    const url = new URL('https://www.googleapis.com/youtube/v3/search');
-    url.searchParams.set('part', 'snippet');
-    url.searchParams.set('q', query);
-    url.searchParams.set('type', 'video');
-    url.searchParams.set('maxResults', '12');
-    url.searchParams.set('key', API_KEY);
-
-    const res = await fetch(url);
-
-    const data = await res.json(); // read JSON once
-
-    if (!res.ok) {
-      // If error, throw message from API response or status code
-      throw new Error(data?.error?.message || `HTTP ${res.status}`);
-    }
-
-    return data.items;
+  return playerIframe;
+}
+async function fetchSponsorSegments(videoId) {
+  try {
+    const res = await fetch(`${config.sponsorBlock}/api/skipSegments?videoID=${videoId}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const segments = await res.json();
+    currentSegments = segments.sort((a,b)=>a.segment[0]-b.segment[0]);
+  } catch (err) {
+    console.warn('SponsorBlock fetch failed:', err);
+    currentSegments = [];
   }
+}
+async function autoSkipSegments() {
+  if (!playerIframe || !currentSegments.length) return;
+const searchInput = document.getElementById('searchInput');
+const searchButton = document.getElementById('searchButton');
+const resultsContainer = document.getElementById('resultsContainer');
+const playerContainer = document.getElementById('playerContainer');
 
-  function renderResults(videos) {
-    resultsContainer.innerHTML = '';
-    videos.forEach(video => {
-      const vid = video.id.videoId;
-      const title = video.snippet.title;
-      const thumb = video.snippet.thumbnails.high.url;
-
-      const div = document.createElement('div');
-      div.className = 'video';
-      div.innerHTML = `
-        <img src="${thumb}" alt="${title}" />
-        <div class="info"><h3>${title}</h3></div>
-      `;
-      div.onclick = () => {
-        playerContainer.innerHTML = '';
-        createYouTubePlayer(
-          'playerContainer',
-          vid,
-          { autoplay: true, width: '100%', height: 360 }
-        );
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      };
-      resultsContainer.appendChild(div);
-    });
+async function searchVideos(query) {
+  try {
+    const res = await fetch(`${config.videoAPI}api/v1/search?q=${encodeURIComponent(query)}&type=videos`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.items || data || [];
+  } catch (err) {
+    console.error('Search failed:', err);
+    return [];
   }
-
-  searchButton.onclick = async () => {
-    const q = searchInput.value.trim();
-    if (!q) return;
-    playerContainer.innerHTML = '';
-    resultsContainer.innerHTML = '<p>Loading…</p>';
-
-    try {
-      const videos = await searchVideos(q);
-      if (!videos.length) {
-        resultsContainer.innerHTML = '<p>No results found.</p>';
-        return;
-      }
-      renderResults(videos);
-    } catch (e) {
-      resultsContainer.innerHTML = `<p>Error: ${e.message}</p>`;
-      console.error('YouTube search failed:', e);
-    }
-  };
+}
+function renderResults(videos) {
+  resultsContainer.innerHTML = '';
+  if (!videos.length) {
+    resultsContainer.innerHTML = '<p>No results found.</p>';
+    return;
+  }
+  videos.forEach(video => {
+    const vid = video.id;
+    const title = video.title;
+    const thumb = video.thumbnailUrl || video.thumbnails?.[0]?.url;
+    const div = document.createElement('div');
+    div.className = 'video';
+    div.innerHTML = `
+      <img src="${thumb}" alt="${title}" />
+      <div class="info"><h3>${title}</h3></div>
+    `;
+    div.onclick = async () => {
+      playerContainer.innerHTML = '';
+      createYouTubePlayer('playerContainer', vid, { autoplay: true, width: '100%', height: 360 });
+      await fetchSponsorSegments(vid);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    resultsContainer.appendChild(div);
+  });
+}
+searchButton.onclick = async () => {
+  const q = searchInput.value.trim();
+  if (!q) return;
+  playerContainer.innerHTML = '';
+  resultsContainer.innerHTML = '<p>Loading…</p>';
+  const videos = await searchVideos(q);
+  renderResults(videos);
+};
 </script>
 </body>
 </html>
