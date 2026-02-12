@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Watch Together - Native Feel (Piped)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Watch Together - External Embeds</title>
 <style>
 body{margin:0;padding:0;background:#111;color:#fff;font-family:sans-serif;}
 #container{max-width:900px;margin:auto;padding:1rem;}
@@ -20,7 +20,7 @@ iframe{width:95%;height:50vh;margin:1rem auto;display:block;border:none;border-r
 <div id="container">
 <h2>Watch Together</h2>
 <div>
-<input id="videoInput" placeholder="Paste YouTube/Piped URL or ID">
+<input id="videoInput" placeholder="Paste YouTube/Invidious URL or ID">
 <button onclick="addVideo()">Add</button>
 <button onclick="nextVideo()">Next</button>
 </div>
@@ -30,11 +30,14 @@ iframe{width:95%;height:50vh;margin:1rem auto;display:block;border:none;border-r
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
-const FRONTEND="https://piped.kavin.rocks/watch/"; // Piped instance
-const queueDiv=document.getElementById("queue"), player=document.getElementById("player"), input=document.getElementById("videoInput");
-let queue=[], current=-1, preloaded=[];
+const EMBED="https://invidious.nerdvpn.de/watch/";
+const queueDiv=document.getElementById("queue"),
+      player=document.getElementById("player"),
+      input=document.getElementById("videoInput");
 
-// ===== SESSION =====
+let queue=[], current=-1;
+
+// ===== SESSION PARAM =====
 let params=new URLSearchParams(window.location.search);
 let session=params.get("session");
 if(!session){session=Math.random().toString(36).substr(2,8);params.set("session",session);history.replaceState(null,null,"?"+params.toString());}
@@ -45,12 +48,21 @@ const extractID=url=>{
     let u=new URL(url);
     if(u.hostname.includes("youtube.com")||u.hostname.includes("music.youtube.com")) return u.searchParams.get("v");
     if(u.hostname=="youtu.be") return u.pathname.slice(1);
-    if(u.hostname.includes("piped")||u.hostname.includes("invidious")) return u.searchParams.get("v");
+    if(u.hostname.includes("invidious")) return u.searchParams.get("v");
     return url.trim();
   }catch(e){return url.trim();}
 };
 
-const renderQueue=()=>{queueDiv.innerHTML="";queue.forEach((v,i)=>{let d=document.createElement("div");d.className="queue-item";d.innerHTML=`<span>${i+1}. ${v}</span><span class="queue-remove" onclick="removeVideo(${i})">✕</span>`;d.onclick=()=>playVideo(i);queueDiv.appendChild(d);});};
+const renderQueue=()=>{
+  queueDiv.innerHTML="";
+  queue.forEach((v,i)=>{
+    const d=document.createElement("div");
+    d.className="queue-item";
+    d.innerHTML=`<span>${i+1}. ${v}</span><span class="queue-remove" onclick="removeVideo(${i})">✕</span>`;
+    d.onclick=()=>playVideo(i);
+    queueDiv.appendChild(d);
+  });
+};
 
 // ===== QUEUE CONTROLS =====
 const addVideo=()=>{
@@ -72,31 +84,11 @@ const removeVideo=i=>{
   if(current>=0) playVideo(current);
 };
 
-// ===== VIDEO PLAYBACK & PRELOAD =====
-const preloadCount=3; // preload next 3 videos
-const preloadNext=i=>{
-  for(let j=0;j<preloadCount;j++){
-    let idx=i+j+1;
-    if(idx>=queue.length) break;
-    if(preloaded[idx]) continue;
-    let f=document.createElement("iframe");
-    f.src=FRONTEND+queue[idx]+"?autoplay=1";
-    f.style.display="none"; f.sandbox="allow-scripts allow-popups"; f.referrerPolicy="no-referrer";
-    document.body.appendChild(f);
-    preloaded[idx]=f;
-  }
-};
-
-const swapPreloaded=i=>{
-  if(preloaded[i]){player.src=preloaded[i].src; preloaded[i].remove(); preloaded[i]=null;}
-  preloadNext(i);
-};
-
+// ===== VIDEO PLAYBACK =====
 const playVideo=i=>{
   if(i<0||i>=queue.length) return;
   current=i;
-  if(preloaded[i]) swapPreloaded(i);
-  else{player.src=FRONTEND+queue[i]+"?autoplay=1"; preloadNext(i);}
+  player.src=EMBED+queue[i]+"?autoplay=1";
 };
 
 const nextVideo=()=>{
@@ -105,7 +97,7 @@ const nextVideo=()=>{
   playVideo(current);
 };
 
-// ===== SESSION BACKEND (PeerJS) =====
+// ===== PEERJS SESSION SYNC =====
 const peer=new Peer(`peer-${session}-${Math.floor(Math.random()*1e4)}`,{host:"0.peerjs.com",secure:true,port:443});
 let conn;
 peer.on("open",id=>{
@@ -115,10 +107,17 @@ peer.on("open",id=>{
 });
 
 const broadcast=msg=>{if(conn&&conn.open)conn.send(msg);};
-const handleMsg=msg=>{const{type,payload}=msg;switch(type){case"queue":queue.push(payload);renderQueue();break;case"remove":queue.splice(payload,1);renderQueue();break;case"play":playVideo(payload);break;}};
+const handleMsg=msg=>{
+  const{type,payload}=msg;
+  switch(type){
+    case"queue": queue.push(payload); renderQueue(); break;
+    case"remove": queue.splice(payload,1); renderQueue(); break;
+    case"play": playVideo(payload); break;
+  }
+};
 
 // ===== EVENTS =====
-input.addEventListener("keypress",e=>{if(e.key==="Enter")addVideo();});
+input.addEventListener("keypress",e=>{if(e.key==="Enter") addVideo();});
 player.addEventListener("ended",nextVideo);
 </script>
 </body>
