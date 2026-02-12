@@ -4,34 +4,33 @@
 <meta charset="UTF-8">
 <title>Watch Together</title>
 <style>
-  html,body{
-    margin:0;
-    padding:0;
-    height:100%;
-    background:#0b0b0b;
-    color:white;
-    font-family:system-ui,Segoe UI,Roboto;
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #0b0b0b;
+    color: white;
+    font-family: system-ui, "Segoe UI", Roboto;
   }
-  .app{
-    display:grid;
-    grid-template-columns: 1fr;
+  .app {
+    display: grid;
     grid-template-rows: 64px 1fr;
-    height:100%;
+    height: 100%;
   }
-  header{
-    display:flex;
-    align-items:center;
-    padding:0 20px;
-    background:#111;
-    border-bottom:1px solid #222;
-    font-weight:600;
-    letter-spacing:.5px;
+  header {
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    background: #111;
+    border-bottom: 1px solid #222;
+    font-weight: 600;
+    letter-spacing: .5px;
   }
-  iframe{
-    width:100%;
-    height:100%;
-    border:none;
-    background:black;
+  iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: black;
   }
 </style>
 </head>
@@ -39,14 +38,20 @@
 
 <div class="app">
   <header>🎬 Watch Together</header>
-
-<iframe
-  src="https://twilight-sun-2f57.gblood016.workers.dev/?url=https://invidious.nerdvpn.de/embed/hgYhws0AHcg"
-  allow="autoplay; fullscreen"
-  referrerpolicy="no-referrer"
-  sandbox="allow-scripts allow-same-origin allow-presentation"
-></iframe>
+  <iframe id="player" allow="autoplay; fullscreen" sandbox="allow-scripts allow-same-origin allow-presentation"></iframe>
 </div>
+
+<script>
+  // Replace this with any YouTube video ID
+  const videoId = "hgYhws0AHcg";
+
+  // Pick any Invidious instance you like
+  const invidiousInstance = "https://invidious.nerdvpn.de";
+
+  // Auto-set the iframe
+  const iframe = document.getElementById("player");
+  iframe.src = `${invidiousInstance}/embed/${videoId}`;
+</script>
 
 </body>
 </html>
