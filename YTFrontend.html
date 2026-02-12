@@ -83,7 +83,9 @@ async function playVideo(video) {
 // ---------------- SEARCH ----------------
 async function searchVideos(query) {
     try {
-        const res = await fetch(`${config.API}search?q=${encodeURIComponent(query)}&type=videos`);
+        // CORS proxy in front of Piped API
+        const url = `https://corsproxy.io/?${encodeURIComponent(config.API + 'search?q=' + query + '&type=videos')}`;
+        const res = await fetch(url);
         if(!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         return data.items || data || [];
@@ -93,7 +95,6 @@ async function searchVideos(query) {
         return [];
     }
 }
-
 // ---------------- RENDER ----------------
 function renderResults(videos) {
     resultsContainer.innerHTML = '';
