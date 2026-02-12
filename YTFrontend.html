@@ -2,84 +2,87 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Watch</title>
-
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Invidious Search (Proxied)</title>
 
 <style>
-html,body{
+body{
   margin:0;
-  height:100%;
-  background:#0b0b0b;
-  color:#eee;
-  font-family:system-ui,Segoe UI,Roboto;
-}
-.app{
-  display:grid;
-  grid-template-rows:56px 1fr;
-  height:100%;
+  background:#111;
+  color:#fff;
+  font-family:system-ui,sans-serif;
 }
 header{
-  background:#111;
-  border-bottom:1px solid #222;
+  background:#222;
+  padding:1rem;
+  text-align:center;
+}
+.searchbar{
   display:flex;
-  align-items:center;
-  padding:0 16px;
-  font-weight:600;
+  justify-content:center;
+  margin:1rem;
 }
-iframe{
-  width:100%;
-  height:100%;
-  border:0;
-  background:black;
+.searchbar input{
+  width:50%;
+  padding:.6rem;
+  border:none;
+  border-radius:6px 0 0 6px;
+  font-size:1rem;
 }
-footer{
-  background:#0f0f0f;
-  border-top:1px solid #222;
-  padding:6px;
-  display:flex;
-  gap:6px;
-}
-button{
-  background:#1a1a1a;
-  color:#eee;
-  border:1px solid #333;
-  padding:6px 10px;
+.searchbar button{
+  padding:.6rem 1rem;
+  border:none;
+  border-radius:0 6px 6px 0;
+  background:#ff5c57;
+  color:#fff;
+  font-size:1rem;
   cursor:pointer;
 }
-button:hover{ background:#222 }
+iframe{
+  width:95%;
+  height:80vh;
+  display:block;
+  margin:1rem auto;
+  border:none;
+  border-radius:10px;
+  background:#000;
+}
 </style>
 </head>
 
 <body>
-<div class="app">
 
-<header>▶ Watch</header>
+<header>
+  <h1>Invidious Search</h1>
+</header>
 
-<iframe
-  id="player"
-  allow="autoplay; fullscreen; picture-in-picture"
-  referrerpolicy="no-referrer"
-  sandbox="allow-scripts allow-same-origin allow-presentation">
-</iframe>
-
-<footer>
-  <button onclick="load('invidious.nerdvpn.de')">nerdvpn</button>
-  <button onclick="load('yewtu.be')">yewtu</button>
-  <button onclick="load('iv.ggtyler.dev')">ggtyler</button>
-</footer>
-
+<div class="searchbar">
+  <input id="query" placeholder="Search YouTube…" autocomplete="off">
+  <button id="searchBtn">Search</button>
 </div>
 
-<script>
-const VIDEO_ID = "hgYhws0AHcg";
+<iframe
+  id="searchFrame"
+  sandbox="allow-scripts allow-forms allow-same-origin allow-popups">
+</iframe>
 
-function load(host){
-  document.getElementById("player").src =
-    `https://${host}/embed/${VIDEO_ID}`;
+<script>
+const INSTANCE = "https://invidious.nerdvpn.de"
+const PROXY = "https://api.allorigins.win/raw?url="
+
+const frame = document.getElementById("searchFrame")
+const input = document.getElementById("query")
+
+function search(){
+  const q = input.value.trim()
+  if(!q) return
+
+  const target = `${INSTANCE}/search?q=${encodeURIComponent(q)}`
+  frame.src = PROXY + encodeURIComponent(target)
 }
 
-load("invidious.nerdvpn.de");
+document.getElementById("searchBtn").onclick = search
+input.onkeydown = e => { if(e.key==="Enter") search() }
 </script>
 
 </body>
