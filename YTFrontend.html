@@ -5,67 +5,105 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Watch Together</title>
 <style>
-  body {
-    margin: 0;
-    background: #111;
-    color: #fff;
-    font-family: Arial, sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
+  /* Reset & basic styling */
+  * { margin:0; padding:0; box-sizing:border-box; font-family: Arial, sans-serif; }
+  body { background: #111; color: #fff; display: flex; flex-direction: column; min-height: 100vh; }
+
   header {
-    width: 100%;
-    padding: 1rem;
-    background: #1c1c1c;
+    background: #000;
+    padding: 1rem 2rem;
+    text-align: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  }
+  header h1 { font-size: 2rem; }
+
+  .search-bar {
+    margin: 1rem auto;
     display: flex;
-    justify-content: center;
+    max-width: 600px;
+    width: 90%;
   }
-  input[type="text"] {
-    width: 60%;
-    padding: 0.5rem;
-    border-radius: 5px;
-    border: none;
-    font-size: 1rem;
-  }
-  button {
-    margin-left: 0.5rem;
-    padding: 0.5rem 1rem;
+  .search-bar input[type="text"] {
+    flex: 1;
+    padding: 0.6rem 1rem;
     font-size: 1rem;
     border: none;
-    border-radius: 5px;
-    background: #ff3b3b;
+    border-radius: 5px 0 0 5px;
+    outline: none;
+  }
+  .search-bar button {
+    padding: 0.6rem 1rem;
+    font-size: 1rem;
+    border: none;
+    background: #e50914;
     color: #fff;
     cursor: pointer;
+    border-radius: 0 5px 5px 0;
+    transition: background 0.2s;
+  }
+  .search-bar button:hover { background: #f6121d; }
+
+  .video-container {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 1rem 2rem;
   }
   iframe {
-    margin-top: 1rem;
-    width: 90%;
-    height: 70vh;
+    width: 80%;
+    max-width: 900px;
+    height: 500px;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+  }
+
+  footer {
+    text-align: center;
+    padding: 1rem;
+    background: #000;
+    font-size: 0.9rem;
+    color: #aaa;
+  }
+
+  @media (max-width: 768px) {
+    iframe { width: 95%; height: 300px; }
   }
 </style>
 </head>
 <body>
 
 <header>
-  <input id="searchBox" type="text" placeholder="Search videos...">
-  <button onclick="searchVideo()">Search</button>
+  <h1>Watch Together</h1>
 </header>
 
-<iframe id="videoFrame" src="https://invidious.nerdvpn.de/watch?v=hgYhws0AHcg" allowfullscreen></iframe>
+<div class="search-bar">
+  <input type="text" id="searchInput" placeholder="Search videos on Invidious...">
+  <button onclick="searchVideo()">Search</button>
+</div>
+
+<div class="video-container">
+  <!-- Default video -->
+  <iframe id="videoFrame" src="https://invidious.nerdvpn.de/embed/hgYhws0AHcg" allowfullscreen></iframe>
+</div>
+
+<footer>
+  Powered by Invidious • <a href="https://invidious.nerdvpn.de/" target="_blank" style="color:#e50914;">Visit Invidious</a>
+</footer>
 
 <script>
 function searchVideo() {
-  const query = document.getElementById('searchBox').value.trim();
-  if(!query) return;
-  
-  // Use Invidious search URL
-  const searchUrl = `https://invidious.nerdvpn.de/search?q=${encodeURIComponent(query)}`;
-  
-  // Open results in new tab (or you could parse and embed)
-  window.open(searchUrl, '_blank');
+  const query = document.getElementById('searchInput').value.trim();
+  if (!query) return;
+  // Open search in new tab to avoid CSP/frame issues
+  window.open(`https://invidious.nerdvpn.de/search?q=${encodeURIComponent(query)}`, '_blank');
+}
+
+function loadVideo(videoId) {
+  // Change video dynamically (professional watch-together feel)
+  const frame = document.getElementById('videoFrame');
+  frame.src = `https://invidious.nerdvpn.de/embed/${videoId}`;
 }
 </script>
 
