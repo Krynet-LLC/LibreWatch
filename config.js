@@ -1,6 +1,6 @@
 // config.js
 export const config = {
-    UI: "https://invidious.kavin.rocks/", // This loads the frontend for watch together, displays all videos
+    UI: "https://piped.video/", // This loads the frontend for watch together, displays all videos
     sponsorBlock: "https://sponsor.ajay.app/", // Blocks all sponsors
     dearrow: "https://dearrow.ajay.app/", // Shows nonclick titles
     API: "https://invidious.kavin.rocks/api/v1/", // Plays videos & fetches them
