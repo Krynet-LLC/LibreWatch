@@ -1,7 +1,6 @@
 // youtubePlayer.js
-import { config } from '../config.js'; // adjust path
+import { config } from './config.js';
 
-// Store currently loaded player and segments
 let currentPlayer = null;
 let currentSegments = [];
 let segmentCheckInterval = null;
@@ -15,9 +14,9 @@ export async function createYouTubePlayer(containerId, videoId, options = {}) {
 
   // Create iframe using Piped (privacy-first)
   const iframe = document.createElement('iframe');
-  iframe.src = `${config.videoAPI}watch?v=${videoId}${options.autoplay ? '&autoplay=1' : ''}`;
-  iframe.width = options.width || '320';
-  iframe.height = options.height || '180';
+  iframe.src = `${config.UI}watch?v=${videoId}${options.autoplay ? '&autoplay=1' : ''}`;
+  iframe.width = options.width || '560';
+  iframe.height = options.height || '315';
   iframe.frameBorder = '0';
   iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
   iframe.sandbox = 'allow-scripts allow-same-origin allow-presentation';
@@ -33,24 +32,22 @@ export async function createYouTubePlayer(containerId, videoId, options = {}) {
 
   // Fetch SponsorBlock segments for auto-skip
   try {
-    const res = await fetch(`${config.sponsorBlock}/api/skipSegments?videoID=${videoId}`);
+    const res = await fetch(`${config.sponsorBlock}api/skipSegments?videoID=${videoId}`);
     currentSegments = res.ok ? (await res.json()).sort((a,b)=>a.segment[0]-b.segment[0]) : [];
   } catch (e) {
     console.warn('SponsorBlock fetch failed:', e);
     currentSegments = [];
   }
 
-  // Start auto-skip loop if needed
+  // Segment check loop placeholder
   if (segmentCheckInterval) clearInterval(segmentCheckInterval);
   segmentCheckInterval = setInterval(() => {
-    // Placeholder: implement real auto-skip logic if using HTML5 player
-    // For iframe embeds like Piped, you may need a custom player to read currentTime
+    // For iframe embeds like Piped, skipping requires extra APIs or HTML5 player
   }, 500);
 
   return iframe;
 }
 
-// Optional: expose current segments for external auto-skip logic
 export function getSponsorSegments() {
   return currentSegments;
 }
