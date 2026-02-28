@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Watch Together - Secure</title>
+<title>Watch Together - External Embeds</title>
 <style>
 body{margin:0;padding:0;background:#111;color:#fff;font-family:sans-serif;}
 #container{max-width:900px;margin:auto;padding:1rem;}
@@ -25,78 +25,110 @@ iframe{width:95%;height:50vh;margin:1rem auto;display:block;border:none;border-r
 <button id="nextBtn">Next</button>
 </div>
 <div id="queue"></div>
-<iframe id="player" allowfullscreen sandbox="allow-scripts allow-popups allow-same-origin"></iframe>
+<iframe id="player" allowfullscreen allow="autoplay" sandbox="allow-scripts allow-popups" referrerpolicy="no-referrer"></iframe>
 </div>
 
-<!-- Local PeerJS bundle -->
-<script src="libs/peerjs.min.js"></script>
+<!-- PeerJS CDN -->
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+
 <script>
-const EMBED="https://invidious.nerdvpn.de/watch/";
-const qDiv=document.getElementById("queue"), player=document.getElementById("player"), input=document.getElementById("videoInput");
+const player=document.getElementById("player"),
+      queueDiv=document.getElementById("queue"),
+      input=document.getElementById("videoInput"),
+      addBtn=document.getElementById("addBtn"),
+      nextBtn=document.getElementById("nextBtn");
+
 let queue=[], current=-1;
 
-// ===== SESSION =====
-const params=new URLSearchParams(location.search);
+// SESSION PARAM
+let params=new URLSearchParams(location.search);
 let session=params.get("session")||Math.random().toString(36).slice(2,10);
 params.set("session",session);
 history.replaceState(null,null,"?"+params.toString());
 
-// ===== HELPERS =====
-const extractID=url=>{
+// HELPERS
+function extractID(url){
   try{
     let u=new URL(url);
     if(u.hostname.includes("youtube.com")||u.hostname.includes("music.youtube.com")) return u.searchParams.get("v");
     if(u.hostname=="youtu.be") return u.pathname.slice(1);
-    if(u.hostname.includes("invidious")) return u.searchParams.get("v");
+    if(u.hostname.includes("invidious")||u.hostname.includes("piped")) return u.searchParams.get("v");
     return url.trim();
   }catch(e){return url.trim();}
-};
+}
 
-// ===== QUEUE RENDER =====
-const renderQueue=()=>{qDiv.innerHTML="";queue.forEach((v,i)=>{
-  const d=document.createElement("div"); d.className="queue-item";
-  d.innerHTML=`<span>${i+1}. ${v}</span><span class="queue-remove">✕</span>`;
-  d.onclick=()=>playVideo(i);
-  d.querySelector(".queue-remove").onclick=e=>{e.stopPropagation();removeVideo(i)};
-  qDiv.appendChild(d);
-});};
+// QUEUE
+function renderQueue(){
+  queueDiv.innerHTML="";
+  queue.forEach((v,i)=>{
+    const d=document.createElement("div");
+    d.className="queue-item";
+    d.innerHTML=`<span>${i+1}. ${v}</span><span class="queue-remove">✕</span>`;
+    d.onclick=()=>playVideo(i);
+    d.querySelector(".queue-remove").onclick=e=>{e.stopPropagation();removeVideo(i)};
+    queueDiv.appendChild(d);
+  });
+}
 
-// ===== QUEUE CONTROLS =====
-const addVideo=()=>{
-  const id=extractID(input.value.trim());if(!id)return;
-  queue.push(id);renderQueue();broadcast({type:"queue",payload:id});
-  if(current===-1)playVideo(0);input.value="";
-};
-const removeVideo=i=>{
-  if(i<0||i>=queue.length)return;
-  queue.splice(i,1);renderQueue();broadcast({type:"remove",payload:i});
-  if(current>=queue.length)current=queue.length-1;
-  if(current>=0)playVideo(current);
-};
+function addVideo(){
+  const id=extractID(input.value.trim());
+  if(!id)return;
+  queue.push(id);
+  renderQueue();
+  broadcast({type:"queue",payload:id});
+  if(current===-1) playVideo(0);
+  input.value="";
+}
 
-// ===== VIDEO PLAYBACK =====
-const playVideo=i=>{if(i<0||i>=queue.length)return;current=i;player.src=EMBED+queue[i]+"?autoplay=1";};
-const nextVideo=()=>{if(queue.length===0)return;current=(current+1)%queue.length;playVideo(current);};
+function removeVideo(i){
+  if(i<0||i>=queue.length) return;
+  queue.splice(i,1);
+  renderQueue();
+  broadcast({type:"remove",payload:i});
+  if(current>=queue.length) current=queue.length-1;
+  if(current>=0) playVideo(current);
+}
 
-// ===== PEERJS SYNC =====
+// VIDEO PLAYBACK
+function playVideo(i){
+  if(i<0||i>=queue.length) return;
+  current=i;
+  // Select an Invidious/Piped instance dynamically
+  const instance="https://piped.kavin.rocks/watch/"; 
+  player.src=instance+queue[i]+"?autoplay=1";
+}
+
+function nextVideo(){
+  if(queue.length===0) return;
+  current=(current+1)%queue.length;
+  playVideo(current);
+}
+
+// PEERJS SYNC
 const peer=new Peer(`peer-${session}-${Math.floor(Math.random()*1e4)}`,{host:"0.peerjs.com",secure:true,port:443});
 let conn;
 peer.on("open",id=>{
   const hostID=`host-${session}`;
-  if(id===hostID)peer.on("connection",c=>c.on("data",handleMsg));
-  else{conn=peer.connect(hostID);conn.on("open",()=>console.log("Connected"));conn.on("data",handleMsg);}
+  if(id===hostID) peer.on("connection",c=>c.on("data",handleMsg));
+  else{conn=peer.connect(hostID); conn.on("open",()=>console.log("Connected")); conn.on("data",handleMsg);}
 });
-const broadcast=msg=>{if(conn&&conn.open)conn.send(msg);};
-const handleMsg=({type,payload})=>{switch(type){
-  case"queue":queue.push(payload);renderQueue();break;
-  case"remove":queue.splice(payload,1);renderQueue();break;
-  case"play":playVideo(payload);break;
-}};
 
-// ===== EVENTS =====
-input.addEventListener("keypress",e=>{if(e.key==="Enter")addVideo();});
-document.getElementById("addBtn").onclick=addVideo;
-document.getElementById("nextBtn").onclick=nextVideo;
+function broadcast(msg){
+  if(conn&&conn.open) conn.send(msg);
+}
+
+function handleMsg({type,payload}){
+  switch(type){
+    case"queue": queue.push(payload); renderQueue(); break;
+    case"remove": queue.splice(payload,1); renderQueue(); break;
+    case"play": playVideo(payload); break;
+  }
+}
+
+// EVENTS
+input.addEventListener("keypress",e=>{if(e.key==="Enter") addVideo();});
+addBtn.onclick=addVideo;
+nextBtn.onclick=nextVideo;
 player.addEventListener("ended",nextVideo);
 </script>
 </body>
