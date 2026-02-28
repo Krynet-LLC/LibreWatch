@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LibreWatch</title>
+<title>LibreWatch Embed</title>
 <style>
   body {
     font-family: sans-serif;
@@ -14,16 +14,11 @@
     align-items: center;
     padding: 2rem;
   }
-  .player-container {
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
-    justify-content: center;
+  #player {
+    width: 640px;
+    max-width: 95vw;
+    height: 360px;
     margin-top: 1rem;
-  }
-  .player {
-    width: 320px;
-    height: 180px;
   }
   iframe {
     width: 100%;
@@ -40,29 +35,30 @@
 </head>
 <body>
 
-<h1>LibreWatch Multi-Endpoint Player</h1>
+<h1>LibreWatch Embed</h1>
 
 <div>
+  <select id="endpoint">
+    <option value="https://piped.video/embed/">Piped</option>
+    <option value="https://pipedapi.frontendfriendly.xyz/embed/">Piped FrontendPrivacy</option>
+    <option value="https://pipedapi.kavin.rocks/embed/">Piped kavin.rocks</option>
+    <option value="https://inv.nadeko.net/embed/">Invidious Nadeko</option>
+    <option value="https://invidious.nerdvpn.de/embed/">Invidious NerdVPN</option>
+  </select>
+
   <input id="videoInput" placeholder="YouTube URL or Video ID" value="dQw4w9WgXcQ">
-  <button id="loadBtn">Load on All Endpoints</button>
+  <button id="loadBtn">Load</button>
 </div>
 
-<div class="player-container" id="playerContainer"></div>
+<div id="player"></div>
 
-<script>
+<script type="module">
+const endpointSelect = document.getElementById("endpoint");
 const videoInput = document.getElementById("videoInput");
 const loadBtn = document.getElementById("loadBtn");
-const playerContainer = document.getElementById("playerContainer");
+const playerContainer = document.getElementById("player");
 
-const endpoints = [
-  { name: "Piped", url: "https://piped.video/" },
-  { name: "Piped FrontendPrivacy", url: "https://pipedapi.frontendfriendly.xyz/" },
-  { name: "Piped kavin.rocks", url: "https://pipedapi.kavin.rocks/" },
-  { name: "Invidious Nadeko", url: "https://inv.nadeko.net/" },
-  { name: "Invidious NerdVPN", url: "https://invidious.nerdvpn.de/" }
-];
-
-/* Extract clean video ID */
+/* Extract YouTube video ID */
 function extractVideoID(input) {
   try {
     if (input.includes("youtube.com") || input.includes("youtu.be")) {
@@ -75,45 +71,54 @@ function extractVideoID(input) {
   }
 }
 
-/* Fetch first SponsorBlock skip segment */
-async function getFirstSkip(videoId) {
+/* Fetch SponsorBlock segments (no proxy needed) */
+async function getSponsorSegments(videoId) {
   try {
     const res = await fetch(`https://sponsor.ajay.app/api/skipSegments?videoID=${videoId}`);
-    if (!res.ok) return 0;
+    if (!res.ok) return [];
     const data = await res.json();
-    if (data.length && data[0].segment[0] === 0) return Math.floor(data[0].segment[1]);
-    return 0;
+    return data.sort((a,b) => a.segment[0] - b.segment[0]);
   } catch {
-    return 0;
+    return [];
   }
 }
 
-/* Create all players */
-async function loadPlayers() {
-  const rawInput = videoInput.value;
-  const videoId = extractVideoID(rawInput);
-  if (!videoId) return alert("Enter a valid video ID or URL.");
-
-  const startTime = await getFirstSkip(videoId);
-
-  playerContainer.innerHTML = ""; // clear old players
-
-  endpoints.forEach(ep => {
-    const wrapper = document.createElement("div");
-    wrapper.className = "player";
-
-    const iframe = document.createElement("iframe");
-    iframe.src = `${ep.url}embed/${videoId}?autoplay=1&start=${startTime}`;
-    iframe.allow = "autoplay; encrypted-media; picture-in-picture";
-    iframe.title = ep.name;
-
-    wrapper.appendChild(iframe);
-    playerContainer.appendChild(wrapper);
-  });
+/* Create iframe player */
+function createPlayer(endpoint, videoId, startTime = 0) {
+  playerContainer.innerHTML = "";
+  const iframe = document.createElement("iframe");
+  iframe.src = `${endpoint}${videoId}?autoplay=1&start=${Math.floor(startTime)}`;
+  iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+  iframe.referrerPolicy = "no-referrer";
+  iframe.sandbox = "allow-scripts allow-same-origin allow-presentation";
+  playerContainer.appendChild(iframe);
 }
 
-loadBtn.addEventListener("click", loadPlayers);
-window.addEventListener("DOMContentLoaded", loadPlayers);
+/* Main load function */
+async function loadVideo() {
+  const rawInput = videoInput.value;
+  const videoId = extractVideoID(rawInput);
+  const endpoint = endpointSelect.value;
+
+  if (!videoId) {
+    alert("Enter a valid video ID or URL.");
+    return;
+  }
+
+  const segments = await getSponsorSegments(videoId);
+
+  let startTime = 0;
+  // Auto-skip intro if first segment starts at 0
+  if (segments.length && segments[0].segment[0] === 0) {
+    startTime = segments[0].segment[1];
+  }
+
+  createPlayer(endpoint, videoId, startTime);
+  console.log("SponsorBlock segments:", segments);
+}
+
+loadBtn.addEventListener("click", loadVideo);
+window.addEventListener("DOMContentLoaded", loadVideo);
 </script>
 </body>
 </html>
