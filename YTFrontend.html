@@ -5,32 +5,78 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LibreWatch Player</title>
   <style>
-    body { font-family: sans-serif; margin: 20px; background: #121212; color: #fff; }
-    #playerContainer { max-width: 560px; margin: 20px auto; }
-    input, button { padding: 8px 12px; margin: 5px 0; width: 100%; box-sizing: border-box; }
-    button { cursor: pointer; background: #ff4444; border: none; color: #fff; border-radius: 6px; }
+    body {
+      font-family: sans-serif;
+      background-color: #111;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+    #player-container {
+      margin-top: 20px;
+      width: 640px;
+      height: 360px;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    select {
+      margin-top: 10px;
+      padding: 5px;
+    }
   </style>
 </head>
 <body>
-  <h1>LibreWatch Player</h1>
-  <div>
-    <input type="text" id="videoIdInput" placeholder="Enter YouTube Video ID" />
-    <button id="loadBtn">Load Video</button>
-  </div>
-  <div id="playerContainer"></div>
+  <h1>LibreWatch YouTube Player</h1>
+
+  <!-- Select API endpoint -->
+  <label for="endpointSelect">Choose Piped/Invidious endpoint:</label>
+  <select id="endpointSelect">
+    <option value="Piped">Piped</option>
+    <option value="Frontendprivacy">Frontendprivacy</option>
+    <option value="kavin.rocks">kavin.rocks</option>
+    <option value="NerdVPN">NerdVPN</option>
+    <option value="Nadeko">Nadeko</option>
+  </select>
+
+  <div id="player-container"></div>
 
   <script type="module">
     import { createYouTubePlayer } from './Player/youtubePlayer.js';
+    import { config } from './Player/config.js';
 
-    const btn = document.getElementById('loadBtn');
-    const input = document.getElementById('videoIdInput');
-    const containerId = 'playerContainer';
+    const containerId = 'player-container';
+    const selectEl = document.getElementById('endpointSelect');
+    
+    // Default video ID
+    let videoId = 'dQw4w9WgXcQ';
 
-    btn.addEventListener('click', async () => {
-      const videoId = input.value.trim();
-      if (!videoId) return alert('Enter a valid YouTube video ID');
-      await createYouTubePlayer(containerId, videoId, { autoplay: true });
-    });
+    async function loadPlayer() {
+      // Pick endpoint from config based on select value
+      let endpointName = selectEl.value;
+      let endpoint = config.UI.Piped[endpointName] || config.UI.Invidious[endpointName] || config.UI.Piped['Piped'];
+
+      console.log('Using endpoint:', endpoint);
+
+      // Create player
+      await createYouTubePlayer(containerId, videoId, { width: 640, height: 360, autoplay: false });
+
+      // SponsorBlock fetch
+      try {
+        const res = await fetch(`${config.sponsorBlock}/api/skipSegments?videoID=${videoId}`);
+        const segments = res.ok ? await res.json() : [];
+        console.log('SponsorBlock segments:', segments);
+      } catch(e) {
+        console.warn('SponsorBlock fetch failed', e);
+      }
+    }
+
+    // Initial load
+    loadPlayer();
+
+    // Reload player when endpoint changes
+    selectEl.addEventListener('change', loadPlayer);
   </script>
 </body>
 </html>
