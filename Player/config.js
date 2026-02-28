@@ -4,15 +4,15 @@ export const config = {
     UI: {
       default: "https://www.youtube-nocookie.com/embed/",
       Invidious: {
-        "NerdVPN": "https://invidious.nerdvpn.de/",
-        "NerdVPN (Onion)": "http://nerdvpneaggggfdiurknszkbmhvjndks5z5k3g5yp4nhphflh3n3boad.onion/",
-        "Nadeko (I2P)": "http://nadekoohummkxncchcsylr3eku36ze4waq4kdrhcqupckc3pe5qq.b32.i2p/",
+        "NerdVPN": "https://invidious.nerdvpn.de/embed/",
+        "NerdVPN (Onion)": "http://nerdvpneaggggfdiurknszkbmhvjndks5z5k3g5yp4nhphflh3n3boad.onion/embed/",
+        "Nadeko (I2P)": "http://nadekoohummkxncchcsylr3eku36ze4waq4kdrhcqupckc3pe5qq.b32.i2p/embed/",
         "Nadeko": "https://inv.nadeko.net/"
       },
       Piped: {
-        "Piped": "https://piped.video/",
-        "Frontendprivacy": "https://pipedapi.frontendfriendly.xyz/",
-        "kavin.rocks": "https://pipedapi.kavin.rocks/"
+        "Piped": "https://piped.video/embed/",
+        "Frontendprivacy": "https://pipedapi.frontendfriendly.xyz/embed/",
+        "kavin.rocks": "https://pipedapi.kavin.rocks/embed/"
       }
     },
     Misc: {
