@@ -1,98 +1,89 @@
-// Player/youtubePlayer.js
-// ES Module - minimal, efficient, production ready
-// Handles YouTube embedding, SponsorBlock skipping, and DeArrow integration
+// youtubePlayer.js - fully modular, production-ready
+let currentPlayer = null;
+let currentSegments = [];
+let sponsorWatcher = null;
 
-import { config } from './config.js';
-
-let player = null;
-let sponsorSegments = [];
-let watcher = null;
-
-/** Extract YouTube video ID from URL or ID */
-function getVideoID(input) {
-  try {
-    if (input.includes('youtu')) {
-      const url = new URL(input);
-      return url.searchParams.get('v') || url.pathname.split('/').pop();
-    }
-  } catch {}
-  return input.trim();
+async function loadConfig() {
+  const raw = await fetch('./config.js', { cache: 'no-store' }).then(r => r.text());
+  const sandbox = {};
+  new Function('sandbox', `
+    let config;
+    ${raw}
+    if(typeof config !== "undefined") sandbox.config = config;
+  `)(sandbox);
+  return Object.freeze(sandbox.config.Player.Misc);
 }
 
-/** Create YouTube iframe player */
 export async function createYouTubePlayer(containerId, videoId, options = {}) {
-  if (!videoId) return console.error('Invalid video ID');
   const container = document.getElementById(containerId);
   if (!container) return console.error('Container not found');
+  if (!videoId) return console.error('Invalid video ID');
 
-  // Initialize LibreUltra if not present
+  // Load config
+  const CFG = await loadConfig();
+
+  // Load LibreUltra player core if not loaded
   if (!window.LibreUltra) {
     const script = document.createElement('script');
     script.src = './playerCore.js';
     script.async = true;
     document.head.appendChild(script);
-    await new Promise(r => (script.onload = r));
+    await new Promise(resolve => script.onload = resolve);
   }
 
-  // Clear old player and watcher
-  if (watcher) clearInterval(watcher);
+  // Clear previous player
   container.innerHTML = '';
+  if (sponsorWatcher) clearInterval(sponsorWatcher);
 
-  // Create iframe
+  // Create iframe for privacy-first YouTube
   const iframe = document.createElement('iframe');
-  const auto = options.autoplay ? 1 : 0;
-  iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=${auto}&rel=0&modestbranding=1&enablejsapi=1`;
-  Object.assign(iframe.style, { borderRadius: '12px', border: 'none', overflow: 'hidden' });
-  iframe.width = options.width || 640;
-  iframe.height = options.height || 360;
-  iframe.frameBorder = 0;
-  iframe.allow =
-    'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+  const autoplay = options.autoplay ? 1 : 0;
+  iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=${autoplay}&rel=0&modestbranding=1&enablejsapi=1`;
+  iframe.width = options.width || '640';
+  iframe.height = options.height || '360';
+  iframe.frameBorder = '0';
+  iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
   iframe.allowFullscreen = true;
   iframe.referrerPolicy = 'no-referrer';
   iframe.title = 'YouTube (Privacy-first) Player';
+  iframe.style.cssText = 'border-radius:12px;border:none;overflow:hidden;';
   container.appendChild(iframe);
-  player = iframe;
+  currentPlayer = iframe;
 
-  // Fetch SponsorBlock segments using LibreUltra caching
+  // Fetch SponsorBlock segments
   try {
-    sponsorSegments = (await window.LibreUltra.sponsor(videoId)) || [];
-    sponsorSegments.sort((a, b) => a.segment[0] - b.segment[0]);
-  } catch {
-    sponsorSegments = [];
+    currentSegments = (await window.LibreUltra.sponsor(videoId)) || [];
+    currentSegments.sort((a,b) => a.segment[0]-b.segment[0]);
+  } catch(e) {
+    console.warn('SponsorBlock fetch failed', e);
+    currentSegments = [];
   }
 
-  // Watcher for skipping
-  watcher = setInterval(() => {
-    if (!iframe.contentWindow || !iframe.contentWindow.YT || !iframe.contentWindow.YT.Player) return;
-    const ytPlayer =
-      iframe.contentWindow.YT?.getPlayers?.()[0] || null;
-    if (!ytPlayer?.getCurrentTime) return;
+  // SponsorBlock automatic skip loop
+  sponsorWatcher = setInterval(() => {
+    if (!iframe.contentWindow || !iframe.contentWindow.YT || !iframe.contentWindow.YT.getPlayers) return;
+    const ytPlayers = iframe.contentWindow.YT.getPlayers?.();
+    const ytPlayer = ytPlayers?.[0];
+    if (!ytPlayer || !ytPlayer.getCurrentTime) return;
 
     const t = ytPlayer.getCurrentTime();
-    for (const seg of sponsorSegments) {
-      const [s, e] = seg.segment;
-      if (t >= s && t < e) {
-        ytPlayer.seekTo(e, true);
-        break; // minimal loop, break as soon as skip done
+    for (const seg of currentSegments) {
+      const [start, end] = seg.segment;
+      if (t >= start && t < end) {
+        ytPlayer.seekTo(end, true);
+        break;
       }
     }
   }, 300);
 
-  // Prefetch DeArrow branding asynchronously
-  window.LibreUltra?.prefetch?.(videoId);
-
   return iframe;
 }
-/** Get cached SponsorBlock segments */
-export function getSponsorSegments() {
-  return sponsorSegments;
-}
 
-/** Destroy current player */
+export function getSponsorSegments() { return currentSegments; }
+
 export function destroyPlayer() {
-  if (watcher) clearInterval(watcher);
-  if (player) player.remove();
-  player = null;
-  sponsorSegments = [];
+  if (sponsorWatcher) clearInterval(sponsorWatcher);
+  if (currentPlayer) currentPlayer.remove();
+  currentPlayer = null;
+  currentSegments = [];
 }
