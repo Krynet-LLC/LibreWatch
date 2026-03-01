@@ -56,13 +56,17 @@ window.LibreUltra = (() => {
   async function sponsor(videoID) {
     const config = await loadConfig();
     if (!config || !config.sponsorBlock?.API) return [];
-    return core(`sb_${videoID}`, config.sponsorBlock.API + 'api/skipSegments?videoID=' + videoID) || [];
+    const base = config.sponsorBlock.API.replace(/\/+$/,''); // remove trailing slash
+    const url = `${base}/api/skipSegments?videoID=${videoID}`;
+    return core(`sb_${videoID}`, url) || [];
   }
 
   async function dearrow(videoID) {
     const config = await loadConfig();
     if (!config || !config.dearrow?.API || !config.dearrow?.KEY) return null;
-    return core(`da_${videoID}`, config.dearrow.API + 'api/branding?videoID=' + videoID + '&license=' + config.dearrow.KEY);
+    const base = config.dearrow.API.replace(/\/+$/,'');
+    const url = `${base}/api/branding?videoID=${videoID}&license=${config.dearrow.KEY}`;
+    return core(`da_${videoID}`, url);
   }
 
   function prefetch(videoID) {
