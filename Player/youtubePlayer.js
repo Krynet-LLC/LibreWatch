@@ -1,4 +1,6 @@
-// plain JS, window-based, JSON-config friendly
+// Player/youtubePlayer.js
+// Plain JS, window-based, JSON-config safe, GitHub Pages-friendly
+
 window.LibreWatchPlayer = (() => {
   let currentPlayer = null;
   let sponsorSegments = [];
@@ -11,6 +13,7 @@ window.LibreWatchPlayer = (() => {
       const res = await fetch('/LibreWatch/Player/config.json', { cache: 'no-store' });
       const json = await res.json();
       CFG = json.Player.Misc;
+      CFG.UI = json.Player.UI; // also keep UI for base URLs
       return CFG;
     } catch(e) { console.error('Failed to load config:', e); return null; }
   }
@@ -60,7 +63,7 @@ window.LibreWatchPlayer = (() => {
 
     const autoplay = options.autoplay ? 1 : 0;
     const iframe = document.createElement('iframe');
-    const baseURL = json.Player.UI.default || 'https://www.youtube-nocookie.com/embed/';
+    const baseURL = config.UI?.default || 'https://www.youtube-nocookie.com/embed/';
     iframe.src = `${baseURL}${videoId}?autoplay=${autoplay}&rel=0&modestbranding=1&enablejsapi=1`;
     iframe.width = options.width || '640';
     iframe.height = options.height || '360';
