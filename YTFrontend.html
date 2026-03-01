@@ -5,26 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LibreWatch</title>
 <style>
-  body {
-    font-family: sans-serif;
-    background: #111;
-    color: #eee;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 2rem;
-  }
-  #player {
-    width: 640px;
-    max-width: 95vw;
-    height: 360px;
-    margin-top: 1rem;
-  }
-  input, button {
-    padding: 0.5rem;
-    margin: 0.25rem;
-    font-size: 1rem;
-  }
+body{font-family:sans-serif;background:#111;color:#eee;display:flex;flex-direction:column;align-items:center;padding:2rem}
+#player{width:640px;max-width:95vw;height:360px;margin-top:1rem}
+input,button{padding:.5rem;margin:.25rem;font-size:1rem}
 </style>
 </head>
 <body>
@@ -32,113 +15,75 @@
 <h1>LibreWatch</h1>
 
 <div>
-  <input id="videoInput" placeholder="YouTube URL or Video ID" value="dQw4w9WgXcQ">
+  <input id="videoInput" value="dQw4w9WgXcQ">
   <button id="loadBtn">Load</button>
 </div>
 
 <div id="player"></div>
 
 <script>
-// ===== CONFIG =====
-const config = {
-  Player: {
-    UI: { default: "https://www.youtube-nocookie.com/embed/" },
-    Misc: { sponsorBlock: "https://sponsor.ajay.app/" }
-  }
-};
-// ==================
+const sponsorAPI="https://sponsor.ajay.app/";
+let player=null;
+let sponsorSegments=[];
 
-const videoInput = document.getElementById("videoInput");
-const loadBtn = document.getElementById("loadBtn");
-const playerContainer = document.getElementById("player");
-
-let player = null;
-let sponsorSegments = [];
-
-// Load YouTube IFrame API
-const tag = document.createElement("script");
-tag.src = "https://www.youtube.com/iframe_api";
+const tag=document.createElement("script");
+tag.src="https://www.youtube.com/iframe_api";
 document.head.appendChild(tag);
 
-window.onYouTubeIframeAPIReady = () => {
-  loadVideo();
-};
+window.onYouTubeIframeAPIReady=()=>{}; // YouTube API ready
 
-// Extract video ID
-function extractVideoID(input) {
-  try {
-    if (input.includes("youtube.com") || input.includes("youtu.be")) {
-      const url = new URL(input);
-      return url.searchParams.get("v") || url.pathname.split("/").pop();
+function extractVideoID(input){
+  try{
+    if(input.includes("youtube.com")||input.includes("youtu.be")){
+      const url=new URL(input);
+      return url.searchParams.get("v")||url.pathname.split("/").pop();
     }
     return input.trim();
-  } catch {
-    return input.trim();
-  }
+  }catch{return input.trim();}
 }
 
-// Fetch SponsorBlock segments
-async function getSponsorSegments(videoId) {
-  try {
-    const res = await fetch(`${config.Player.Misc.sponsorBlock}api/skipSegments?videoID=${videoId}`);
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.sort((a, b) => a.segment[0] - b.segment[0]);
-  } catch {
-    return [];
-  }
+async function getSponsorSegments(videoId){
+  try{
+    const res=await fetch(`${sponsorAPI}api/skipSegments?videoID=${videoId}`);
+    if(!res.ok)return[];
+    const data=await res.json();
+    return data.sort((a,b)=>a.segment[0]-b.segment[0]);
+  }catch{return[];}
 }
 
-// Create YouTube player using IFrame API
-function createPlayer(videoId) {
-  playerContainer.innerHTML = "";
-  const div = document.createElement("div");
-  div.id = "yt-player";
-  playerContainer.appendChild(div);
+function createPlayer(videoId){
+  document.getElementById("player").innerHTML="<div id='yt'></div>";
 
-  player = new YT.Player("yt-player", {
-    videoId,
-    host: config.Player.UI.default.replace("/embed/", ""),
-    playerVars: {
-      autoplay: 1,
-      rel: 0,
-      modestbranding: 1,
-    },
-    events: {
-      onReady: () => startSponsorSkipWatcher(),
-    },
+  player=new YT.Player("yt",{
+    videoId:videoId,
+    playerVars:{autoplay:1,mute:1,rel:0,modestbranding:1,enablejsapi:1,origin:window.location.origin},
+    events:{onReady:(e)=>{e.target.unMute();startSponsorWatcher();}}
   });
 }
 
-// Real-time SponsorBlock skipping
-function startSponsorSkipWatcher() {
-  setInterval(() => {
-    if (!player || !player.getCurrentTime) return;
-    const current = player.getCurrentTime();
-
-    for (const seg of sponsorSegments) {
-      const [start, end] = seg.segment;
-      if (current >= start && current < end) {
-        player.seekTo(end, true);
-        break;
+function startSponsorWatcher(){
+  setInterval(()=>{
+    if(!player||!player.getCurrentTime)return;
+    const current=player.getCurrentTime();
+    for(const seg of sponsorSegments){
+      const[start,end]=seg.segment;
+      if(current>=start&&current<end){
+        player.seekTo(end,true); break;
       }
     }
-  }, 300); // check 3x/sec
+  },300);
 }
 
-// Main loader
-async function loadVideo() {
-  const videoId = extractVideoID(videoInput.value);
-  if (!videoId) return alert("Enter a valid video ID or URL.");
+async function loadVideo(){
+  const id=extractVideoID(document.getElementById("videoInput").value);
+  if(!id)return alert("Invalid ID");
 
-  sponsorSegments = await getSponsorSegments(videoId);
-
-  if (player) player.destroy();
-
-  createPlayer(videoId);
+  sponsorSegments=await getSponsorSegments(id);
+  if(player)player.destroy();
+  createPlayer(id);
 }
 
-loadBtn.addEventListener("click", loadVideo);
+document.getElementById("loadBtn").addEventListener("click",loadVideo);
 </script>
 
 </body>
