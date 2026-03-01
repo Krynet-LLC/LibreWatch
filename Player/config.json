@@ -56,7 +56,8 @@
       },
       "Piped": {},
       "Google": {
-        "API_KEY": ""
+        "API_KEY": "",
+        "IFrame_API": "https://www.youtube.com/iframe_api"
       }
     }
   }
