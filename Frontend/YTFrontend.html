@@ -26,22 +26,37 @@
 </div>
 
 <script type="module">
+  "use strict";
+
   import { extractVideoID } from '../Player/extract.js';
   import { LibreWatchPlayer } from '../Player/youtubePlayer.js';
 
   const btn = document.getElementById('loadBtn');
   const input = document.getElementById('videoInput');
 
-  // Initialize the production player instance
-  const playerInstance = LibreWatchPlayer.init('#player');
+  // Handle initialization cleanly inside an async block to prevent forced layout shifts
+  async function startApp() {
+    try {
+      const playerInstance = await LibreWatchPlayer.init('#player');
+      
+      btn.addEventListener('click', () => {
+        const raw = input.value.trim();
+        const id = extractVideoID(raw);
+        if (!id) return alert('Invalid video ID or URL');
+        
+        LibreWatchPlayer.load(id);
+      });
+    } catch (err) {
+      console.error("Initialization failed:", err);
+    }
+  }
 
-  btn.addEventListener('click', () => {
-    const raw = input.value.trim();
-    const id = extractVideoID(raw);
-    if (!id) return alert('Invalid video ID or URL');
-    
-    LibreWatchPlayer.load(id);
-  });
+  // Fire only when DOM is completely parsed to stop layout thrashing
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startApp);
+  } else {
+    startApp();
+  }
 </script>
 
 </body>
