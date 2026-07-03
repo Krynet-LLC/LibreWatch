@@ -1,1 +1,27 @@
-!function(){const e="https://raw.githubusercontent.com/ClearURLs/Rules/master/data.min.json";let t=[],r=!1;function n(e){return/^[a-zA-Z0-9_-]{11}$/.test(e)}async function a(){try{const a=await(await fetch(e)).json();t=Object.values(a.providers).map(e=>({u:e.urlPattern?new RegExp(e.urlPattern,"i"):null,q:e.rules?.map(e=>new RegExp(e,"i")).filter(Boolean),raw:e.rawRules?.map(e=>new RegExp(e,"i")).filter(Boolean),exc:e.exceptions?.map(e=>new RegExp(e,"i")).filter(Boolean)})).filter(e=>e.u),r=!0}catch(e){console.error(e)}}function o(e){let a;try{a=new URL(e)}catch{return e}if(!r||!a.searchParams.toString())return e;for(let s of t){if(!s.u.test(a.href))continue;if(s.exc?.some(e=>e.test(a.href)))continue;s.q&&[...a.searchParams].forEach(([e])=>{s.q.some(t=>t.test(e))&&a.searchParams.delete(e)}),s.raw&&s.raw.forEach(e=>{try{a=new URL(a.href.replace(e,""))}catch{}}),a.hash&&/utm_|fbclid|gclid/i.test(a.hash)&&(a.hash="")}return a.toString()}function i(e){e=e.trim();if(n(e))return e;try{const t=new URL(e),r=t.hostname.replace(/^www\./,"");if("youtu.be"===r)return n(t.pathname.slice(1))?t.pathname.slice(1):null;if(r.includes("youtube.com")||r.includes("youtube-nocookie.com")||r.includes("music.youtube.com")||r.includes("invidious")||r.includes("piped")){const e=t.searchParams.get("v");if(n(e))return e;const a=t.pathname.match(/\/(?:embed|shorts|watch|v)\/([^/?]+)/);if(a&&n(a[1]))return a[1];const o=t.pathname.split("/").filter(Boolean),i=o[o.length-1];if(n(i))return i}}catch{}const m=e.match(/([a-zA-Z0-9_-]{11})/);return m?m[1]:null}function c(e){return e.replace(/(https?:\/\/[^\s<]+[^<.,:;"'>)\]\s])/g,o)}function u(){document.addEventListener("submit",e=>{let t=e.target.querySelector("textarea,[contenteditable=true]");t&&("value"in t?t.value=c(t.value):t.innerText=c(t.innerText))}),document.addEventListener("paste",e=>{let t=e.target;if(!t.matches("textarea,[contenteditable=true]"))return;setTimeout(()=>{"value"in t?t.value=c(t.value):t.innerText=c(t.innerText)},0)})}function l(){document.querySelectorAll(".message").forEach(e=>{if(e.__cu)return;const t=e.innerHTML,c=t.replace(/(https?:\/\/[^\s<]+[^<.,:;"'>)\]\s])/g,o);t!==c&&(e.innerHTML=c),e.__cu=!0})}function s(){if(!window.MutationObserver)return;let e=!1;new MutationObserver(()=>{if(e)return;e=!0,requestAnimationFrame(()=>{l(),e=!1})}).observe(document.body,{childList:!0,subtree:!0})}async function d(){await a(),u(),l(),s()}window.cleanURL=o,window.extractVideoID=i,d()}();
+/**
+ * Sanitizes URLs from corporate telemetry and extracts the 11-char YouTube Video ID
+ */
+export function extractVideoID(input) {
+  let cleanStr = input.trim();
+
+  // If it's already just a raw 11-character video ID, return it
+  if (/^[a-zA-Z0-9_-]{11}$/.test(cleanStr)) {
+    return cleanStr;
+  }
+
+  try {
+    const url = new URL(cleanStr);
+    // Strip common tracking parameters using native web URL APIs
+    const trackers = ['utm_source', 'utm_medium', 'utm_campaign', 'fbclid', 'gclid'];
+    trackers.forEach(param => url.searchParams.delete(param));
+    cleanStr = url.toString();
+  } catch (e) {
+    // Not a valid URL, treat as string fallback
+  }
+
+  // High-performance extraction array matching shorts, embeds, piping engines, and redirects
+  const regex = /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=)|(?:piped|invidious)[^/]*\/(?:watch\?v=|embed\/))([a-zA-Z0-9_-]{11})/i;
+  const match = cleanStr.match(regex);
+  
+  return match ? match[1] : null;
+}
