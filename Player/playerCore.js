@@ -1,77 +1,67 @@
-// Player/playerCore.js
-// Minimal, plain JS, JSON-config-friendly, window-based
+export class LibreUltraCore {
+  constructor() {
+    this.config = null;
+    this.tokens = 25;
+    this.cooldowns = new Map();
+    this.bc = typeof window !== 'undefined' ? new BroadcastChannel('libre_ultra_sync') : null;
 
-window.LibreUltra = (() => {
-  let CFG = null;
-  const memory = new Map();
-  const inflight = new Map();
-  const lastHit = new Map();
-  const RATE_LIMIT = 25;
-  const INTERVAL = 60000;
-  const TTL = 5 * 60 * 1000; // 5 min cache
-  const MAX_CACHE = 80;
-  const PER_VIDEO_COOLDOWN = 4000;
+    // Reset rate limit token bucket every minute
+    setInterval(() => { this.tokens = 25; }, 60000);
 
-  let tokens = RATE_LIMIT;
-  const bc = "BroadcastChannel" in window ? new BroadcastChannel("libre_ultra") : null;
-  if (bc) bc.onmessage = e => { if (e.data === "t" && tokens > 0) tokens--; };
-  setInterval(() => tokens = RATE_LIMIT, INTERVAL);
+    if (this.bc) {
+      this.bc.onmessage = (e) => {
+        if (e.data === 'DECREMENT' && this.tokens > 0) this.tokens--;
+      };
+    }
+  }
 
-  function allow() { if (tokens <= 0) return false; tokens--; bc?.postMessage("t"); return true; }
-  function now() { return performance.now(); }
-  function trim() { while (memory.size > MAX_CACHE) memory.delete(memory.keys().next().value); }
-
-  setInterval(() => {
-    const t = now();
-    for (const [k,v] of memory) if (t - v.t > TTL) memory.delete(k);
-  }, 60000);
-
-  async function loadConfig() {
-    if (CFG) return CFG;
+  async getConfig() {
+    if (this.config) return this.config;
     try {
-      const res = await fetch('/LibreWatch/Player/config.json', { cache: 'no-store' });
+      const res = await fetch('../Player/config.json', { cache: 'no-store' });
       const json = await res.json();
-      CFG = json.Player.Misc;
-      CFG.UI = json.Player.UI; // include UI for completeness
-      return CFG;
-    } catch(e) { console.error('Failed to load config:', e); return null; }
+      this.config = json.Player;
+      return this.config;
+    } catch (e) {
+      console.error('Failed to load config.json', e);
+      return null;
+    }
   }
 
-  async function core(key, url) {
-    const cached = memory.get(key);
-    if (cached && now() - cached.t < TTL) return cached.v;
-    if (lastHit.has(key) && now() - lastHit.get(key) < PER_VIDEO_COOLDOWN) return null;
-    if (!allow()) return null;
-    if (inflight.has(key)) return inflight.get(key);
+  checkRateLimit(key) {
+    const now = performance.now();
+    if (this.cooldowns.has(key) && (now - this.cooldowns.get(key)) < 4000) return false;
+    if (this.tokens <= 0) return false;
 
-    lastHit.set(key, now());
-    const req = fetch(url, { referrerPolicy: "no-referrer", keepalive: true })
-      .then(r => r.ok ? r.json() : null)
-      .then(v => { inflight.delete(key); if (v) { memory.set(key, { v, t: now() }); trim(); } return v; })
-      .catch(() => { inflight.delete(key); return null; });
-    inflight.set(key, req);
-    return req;
+    this.tokens--;
+    this.cooldowns.set(key, now);
+    this.bc?.postMessage('DECREMENT');
+    return true;
   }
 
-  async function sponsor(videoID) {
-    const config = await loadConfig();
-    if (!config || !config.sponsorBlock?.API) return [];
-    const base = config.sponsorBlock.API.replace(/\/+$/,''); // remove trailing slash
-    const url = `${base}/api/skipSegments?videoID=${videoID}`;
-    return core(`sb_${videoID}`, url) || [];
-  }
+  async getSponsorSegments(videoId) {
+    if (!this.checkRateLimit(`sb_${videoId}`)) return [];
+    
+    try {
+      const cfg = await this.getConfig();
+      const baseApi = cfg.Misc.sponsorBlock.API.replace(/\/+$/, '');
+      const url = `${baseApi}/api/skipSegments?videoID=${videoId}`;
 
-  async function dearrow(videoID) {
-    const config = await loadConfig();
-    if (!config || !config.dearrow?.API || !config.dearrow?.KEY) return null;
-    const base = config.dearrow.API.replace(/\/+$/,'');
-    const url = `${base}/api/branding?videoID=${videoID}&license=${config.dearrow.KEY}`;
-    return core(`da_${videoID}`, url);
-  }
+      // Use native browser cache API instead of manual memory tracking arrays
+      const cacheStore = await window.caches?.open('librewatch-cache-v1');
+      let cachedResponse = cacheStore ? await cacheStore.match(url) : null;
 
-  function prefetch(videoID) {
-    requestIdleCallback?.(() => dearrow(videoID));
-  }
+      if (!cachedResponse) {
+        const freshResponse = await fetch(url, { referrerPolicy: 'no-referrer' });
+        if (freshResponse.ok && cacheStore) {
+          await cacheStore.put(url, freshResponse.clone());
+          cachedResponse = freshResponse;
+        }
+      }
 
-  return { sponsor, dearrow, prefetch };
-})();
+      return cachedResponse && cachedResponse.ok ? await cachedResponse.json() : [];
+    } catch (err) {
+      return [];
+    }
+  }
+}
